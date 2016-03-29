@@ -25,7 +25,7 @@
       <table>
       {% for artistfirstName, artistlastName, DOB, artistid in artistinfoList %}
         <tr>
-          <td> <a href="artistinfo?artistid={{artistid}}">{{artistfirstName}}</td><td>{{artistlastName}}</td><td>{{ DOB }}</td><td>{{ artistid }}</td>
+          <td>Name: <a href="artistinfo?artistid={{artistid}}">{{artistfirstName}} {{artistlastName}}</td><td>Birthday: {{ DOB }}</td>
         </tr>
       {% endfor %}
       </table>

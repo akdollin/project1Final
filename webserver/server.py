@@ -3,14 +3,9 @@
 """
 Columbia W4111 Intro to databases
 Example webserver
-
 To run locally
-
     python server.py
-
 Go to http://localhost:8111 in your browser
-
-
 A debugger such as "pdb" may be helpful for debugging.
 Read about it online.
 """
@@ -35,7 +30,6 @@ def before_request():
   This function is run at the beginning of every web request 
   (every time you enter an address in the web browser).
   We use it to setup a database connection that can be used throughout the request
-
   The variable g is globally accessible
   """
   try:
@@ -204,19 +198,20 @@ def search():
       movlist.append(row)
   cursor.close()
 
-  cursor = g.conn.execute(text('SELECT artistfirstname, artistlastname, artistid FROM artists WHERE artistfirstname LIKE :inpt OR artistlastname LIKE :inpt'), inpt = input)
+  blank = ' '
+  cursor = g.conn.execute(text('SELECT artistfirstname, artistlastname, artistid FROM artists WHERE LOWER(artistfirstname) LIKE LOWER(:inpt) OR LOWER(artistlastname) LIKE LOWER(:inpt) OR LOWER(CONCAT(CONCAT(artistfirstname, :bl), artistlastname)) LIKE LOWER(:inpt)'), inpt = input, bl = blank)
   artlist = []
   for row in cursor:
       artlist.append(row)
   cursor.close()
 
-  cursor = g.conn.execute(text('SELECT genrename, genreid FROM genres WHERE genrename LIKE :inpt'), inpt = input)
+  cursor = g.conn.execute(text('SELECT genrename, genreid FROM genres WHERE LOWER(genrename) LIKE LOWER(:inpt)'), inpt = input)
   genlist = []
   for row in cursor:
       genlist.append(row)
   cursor.close()
 
-  cursor = g.conn.execute(text('SELECT DISTINCT awardname, year FROM awards WHERE awardname LIKE :inpt OR category LIKE :inpt OR role LIKE :inpt OR artist LIKE :inpt'), inpt = input)
+  cursor = g.conn.execute(text('SELECT DISTINCT awardname, year FROM awards WHERE LOWER(awardname) LIKE LOWER(:inpt) OR LOWER(category) LIKE LOWER(:inpt) OR LOWER(role) LIKE LOWER(:inpt) OR LOWER(artist) LIKE LOWER(:inpt)'), inpt = input)
   awlist = []
   for row in cursor:
       awlist.append(row)
@@ -228,7 +223,7 @@ def search():
 @app.route('/watchhistory', methods=['GET', 'POST'])
 def watchhistory():
   userid = session['username']
-  cursor = g.conn.execute(text('SELECT m.title, w.datewatched, x.extservname FROM movies m, watched w, externalaccounts e, externalservices x, servedby s, belongto b WHERE m.movid = w.movid AND w.extaccid = e.extaccid AND e.extaccid = b.extaccid AND e.extaccid = s.extaccid AND x.extservid = s.extservid AND b.userid = :username ORDER BY w.datewatched ASC'), username = userid)
+  cursor = g.conn.execute(text('SELECT m.title, w.datewatched, x.extservname, m.movid FROM movies m, watched w, externalaccounts e, externalservices x, servedby s, belongto b WHERE m.movid = w.movid AND w.extaccid = e.extaccid AND e.extaccid = b.extaccid AND e.extaccid = s.extaccid AND x.extservid = s.extservid AND b.userid = :username ORDER BY w.datewatched ASC'), username = userid)
   watchlist = []
   for row in cursor:
     watchlist.append(row)
@@ -251,17 +246,19 @@ def searchhistory():
     searchartList.append((result2[0]+' '+result2[1], result2[2], result2[3]))
   cursor2.close()
 
+  try:
+    if request.method == 'POST':
+      clear = request.form['clear']
+      if clear == 'Clear History':
+        g.conn.execute(text('DELETE from searchHistory_Movies s WHERE s.userid= :name'), name= userid)
+        g.conn.execute(text('DELETE from searchHistory_Artists s WHERE s.userid= :name'), name= userid)
+        return redirect("/searchhistory")
+  except:
+    import traceback; traceback.print_exc()
+
+
   context = dict(searchmovList=searchmovList, searchartList = searchartList, username = userid)
   return render_template("searchhistory.html", **context)
-  cursor1 = g.conn.execute(text('Select m.title, s.movTimeSearch FROM Movies m, searchHistory_Movies s WHERE s.userid= :name AND s.movid=m.movid ORDER BY s.movTimeSearch DESC'), name = userid)
-  searchList = []
-  searchList.append(('hello','29'))
-  for result in cursor1:
-    searchList.append((result.title, result.movTimeSearch))
-  cursor1.close()
-
-  context = dict(searchList=searchList, username = userid)
-  return render_template("searchHistory.html", **context)
 
 @app.route('/rate', methods=['GET', 'POST'])
 def rate():
@@ -333,9 +330,11 @@ def movieinfo():
       date = datetime.date.today()
       maxPos = g.conn.execute(text('SELECT max(position) FROM Queue q  WHERE q.userid= :userid'), userid = userid)
       newmax = maxPos.fetchone()[0] + 1
-    
-      # print "movid = %s\n" % movid
-      g.conn.execute(text('insert into queue values (:userid, :movid, :newmax, :date)'), userid=userid, movid=movid, newmax=newmax, date = date)
+
+      try:
+        g.conn.execute(text('insert into queue values (:userid, :movid, :newmax, :date)'), userid=userid, movid=movid, newmax=newmax, date = date)
+      except:
+        return redirect("/home")
     return redirect("/home") 
 
   import datetime;  
@@ -387,13 +386,9 @@ if __name__ == "__main__":
     """
     This function handles command line parameters.
     Run the server using
-
         python server.py
-
     Show the help text using
-
         python server.py --help
-
     """
 
     HOST, PORT = host, port
